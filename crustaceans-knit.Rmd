@@ -1,0 +1,515 @@
+---
+title: "Crustaceans case"
+author: "Gracie"
+date: "2024-09-02"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(tidyverse)
+global <- read.csv("global_vert.csv")
+all_countries <- read.csv("all_vert.csv")
+all_average <- read.csv("all_average.csv")
+bounds_ribbon <- read.csv("bounds_ribbon.csv")
+avg_bounds <- read.csv("avg_bounds.csv")
+bin_data <- read.csv("bin.csv") 
+all_countries_price <- read.csv("all_countries_price.csv")
+global_price <- read.csv("global_price.csv")
+population_all <- read.csv("population_all.csv")
+```
+
+## Introduction
+
+This case is being created with the objective of familiarizing the analyst with the data analysis process involved in the commercialization of aquaculture goods, specifically commercialization of crustaceans with aquaculture origin.
+
+The world of aquaculture is growing, with the development of new technology to harvest shrimp more efficiently than ever, many companies in the industry are facing a shift towards new techniques and automation of processes. But not only is the production landscape evolving, commercialization is as well. With other protein sources becoming less attainable, whole geographies are familiarizing their palates to aquacultured seafood and its unique benefits, like cost-effectiveness and low environmental impact. Companies in this field will have to observe these shifts in consumer behavior globally to stay ahead of the curve of market flows.
+
+For this case study, we will consider the scenario of a near-future crustacean aquaculture company. This company is currently preparing to launch as a farm, with a vision set on taking on commercialization later, integrating vertically. In order to do this, they need to determine where to set their farms and operations in, and where to potentially commercialize its final products to. 
+
+### Business task
+
+To support this scenario, the case study will focus on identifying the trends leading global aquaculture crustacean commercialization trade flows as our proposed business task. Essentially we set out to answer the following question: Where do most of the aquacultured crustaceans traded in the world come from, and where do they go?
+
+## Case Analysis
+
+### Data sources and treatment
+
+For this purpose, we will make use of the Global Aquaculture Imports and Exports dataset, constructed with data from the Food and Agriculture Organization of the United Nations (FAO), compiled by Zheng Tzer and uploaded to kaggle. This database stores import and export quantities (in tonnes) and values (in hundreds of USD) of aquacultured fish and crustaceans traded from 2000 to 2015 globally. From this dataset we have extracted trade flow trends for each geography over the years, as well as performed a more detailed analysis on global top importers and exporters. 
+
+Data treatment, cleaning and organization is documented in the following steps
+Files were downloaded directly from [kaggle](https://www.kaggle.com/datasets/zhengtzer/global-fisheries-aquaculture-department). The dataset contains sets of two files (quantity and value) for  countries inside each continent (Americas, Asia, Europe, Africa and Oceania, with another set for Global). In total, 12 files were downloaded.
+An initial exploration was performed using spreadsheets and BigQuery.
+Each file was treated to pivot data from horizontal observations to vertical records for easier manipulation. This was performed in R.
+Next, value and quantity data was consolidated for each geography, and then globally, resulting in one single file containing vertical data for all geographies in quantity and value. This was also performed in R.
+You can see a detailed account of these steps in the included document titled "Crustaceans case cleaning documentation".
+
+
+### Summary of analysis
+
+* Region and country average analysis: First we review top importers and exporters of all time. By averaging each country’s quantity of crustaceans imported or exported, we can identify the top players in each geography, along with their average quantity of exports or imports, and compare them to the regional and global average, by trade flow.
+
+* Regional balance analysis: Then, we would like to know trends across time, so we calculate trade balance for each region by subtracting exports minus imports.
+
+* Trade quantity and price analysis, per region: We can zoom in to each geography by looking at each country’s performance year by year, and compare the values to each region’s average. We divide each country's value over quantity to calculate price, for both exports and imports. 
+
+* Global values in context: Finally, we divide quantity over population to calculate per capita relative quantity, for both exports and imports. 
+
+
+### Region and country average analysis:
+
+First we average 15-year performance of each county and compare the values to each region's average. This will inform us how the world's players perform, what is the average expected values and how who are the outliers, both over and under performers.
+
+```{r cute plot, echo=FALSE, message=FALSE, warning=FALSE}
+cute_plot <- ggplot(data=all_average, 
+                    mapping=aes(x=region, y = mean_number, color=region, alpha = mean_number)) + 
+  geom_jitter(size = 3, width = 0.2) +
+  stat_summary(fun = mean, geom = "point", size = 3, color = "black")+
+  geom_segment(aes(x=region, xend=region, y=14624.47, yend=mean_region), linewidth = 0.8)+
+  coord_flip() +
+  geom_hline(data=filter(all_average, trade_flow=="Import"),aes(yintercept = 13250.54), color="gray", linewidth = 0.6) +
+  geom_hline(data=filter(all_average, trade_flow=="Export"),aes(yintercept = 16209.76), color="gray", linewidth = 0.6) +
+  geom_text(data=filter(all_average, trade_flow=="Import"),mapping=aes(x=5.3, y=410000), label="World Average: 13,250 T", color="gray", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Export"),mapping=aes(x=5.3, y=410000), label="World Average: 16,209 T", color="gray", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Import"),
+            mapping=aes(x=2.3, y=620000), label="US: 692,640", color="#A2A413", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Import"),
+            mapping=aes(x=3.3, y=370000), label="Japan: 372,450", color="#15986C", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Import"),
+            mapping=aes(x=4.3, y=200000), label="Spain: 187,320", color="#1EA5C9", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Export"),
+            mapping=aes(x=4.3, y=200000), label="Denmark: 126,231", color="#1EA5C9", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Export"),
+            mapping=aes(x=3.3, y=410000), label="China: 337,172", color="#15986C", size=3)+
+  geom_text(data=filter(all_average, trade_flow=="Export"),
+            mapping=aes(x=2.3, y=270000), label="Canada: 208,394", color="#A2A413", size=3)+
+  theme(legend.position = "none") +
+  labs(title="Average aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)
+cute_plot
+```
+
+#### Insights:
+
+* The world average for imports is 13,250 tonnes. The world average for exports is 16,209 tonnes.
+
+* Asia's imports are consistent, with a region average of 17,277 tonnes. In this region, 10 out of 50 countries surpass that average.
+Japan is the top importer of its region, averaging 374,450 tonnes per year, placing as the 2nd top importer in the world.
+It has strong exporters, with a high region average 39,477 tonnes per year, it doubles in size compared to its average regional imports and the world's average imports . With 10 out of 50 countries over the regional average.
+China is the top exporter both of its region and globally, averaging 337,172 tonnes per year. Thailand, Vietnam and India perform well above the 200,000 tonnes mark with the top 2nd, 3rd and 4th places respectively, making Asia the busiest region for exporters.
+
+* In America, the US is the top importer globally, averaging a whopping 692,640 tonnes per year, the biggest quantity of imports and exports globally. Canada and Mexico are left behind, with 87,951 and 18,524 tonnes respectively, staying closer to the region average of 18,211 tonnes for imports.
+Exports are more consistent, with 8 out of 38 countries staying above the region average of 19,669 tonnes for exports. Now the top place is taken by Canada, averaging 208,394 tonnes per year, placing as the 5th top exporter in the world, behind Asian exporters. Another highlight in this region is Ecuador, with 14,252 tonnes per average, is the second top exporter in the region.
+
+* Europe's imports are strong, with a region average of 24,285 tonnes. In this region, 12 out of 42 countries surpass that average, and one more above the world average of 13,250.
+Spain is the top importer of its region, averaging 187,320 tonnes per year, placing as the 3rd top importer in the world.
+The region's exports are weaker, with a region average of 12,670 tonnes, weaker than the world average of 16,290. It has 11 out of 42 countries over the regional average.
+Denmark is the top exporter of its region, averaging 126,231 tonnes per year, placing as the 8th top exporter in the world.
+ 
+* Africa and Oceania are the weaker regions for both imports and exports. Oceania's imports average 2,258 tonnes per year, with Australia being the strongest in the region with 30,984 tonnes in average, placing 21st place globally. African imports reach only an average of 755 tonnes per year, with Morocco being the strongest in the region with 20,137 tonnes in average, barely surpassing the world average, placing 26th place for global exports. 
+Their exports are similar in size. Oceania reaches only 1,752 tonnes average per year.  Australia is at the top once more with 19,335 tonnes per year on average, placing 27th place globally. Africa has slightly stronger exports than imports, with 1,394 tonnes regional average. Morocco takes the head again with 13,495 average tonnes, placing 34th place globally.
+
+### Regional balance analysis
+
+Next, we analyze trade flows for each region, to map trade surplus and deficit across time. This is done subtracting imports minus exports. Figuring out each region's balance across time will serve as context for our analysis.
+
+```{r regional balace, echo=FALSE, message=FALSE, warning=FALSE}
+ribbon <- ggplot(data=filter(global, commodity=="Crustaceans", unit=="qty"))+
+  geom_line(mapping=aes(x=year, y=number, linetype=trade_flow))+
+  geom_ribbon (data=filter(bounds_ribbon, commodity=="Crustaceans", unit=="qty"), 
+               mapping=aes(x=year, ymin= ymin, ymax=ymax, fill=balance_label), alpha=0.2)+
+  labs(title="Aquacultured crustacean trade balance", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~land_area)
+ribbon
+```
+
+```{r top country balance, echo=FALSE, message=FALSE, warning=FALSE}
+mirror<- ggplot(data=filter(avg_bounds, commodity=="Crustaceans", unit=="qty", 
+                            land_area=="United States of America"|
+                              land_area=="Japan"|
+                              land_area=="Spain"|
+                              land_area=="France"|
+                              land_area=="Korea, Republic of"|
+                              land_area=="Italy"|
+                              land_area=="China"|
+                              land_area=="Thailand"|
+                              land_area=="Viet Nam"|
+                              land_area=="India"|
+                              land_area=="Indonesia"|
+                              land_area=="Ecuador"
+                            ),
+                mapping=aes(x=avg_balance, y=land_area, fill=balance_label))+
+  geom_col()+
+  geom_text(mapping=aes(x=0, y=land_area, label=round(avg_balance)))+
+  labs(title="Aquacultured crustacean trade balance in top cities", subtitle="from 2000-2015",
+       x="Average tonnes", y="City", caption= "FAO Global Aquaculture Imports and Exports" )
+mirror
+```
+
+
+#### Insights
+
+* Asia and Europe have maintained their clear trends in the 15 year period of our analysis, with a trade surplus for Asia (stronger exports, primary supply for the world), and a trade deficit for Europe (stronger imports, primary demand for the world).
+
+* Africa and Oceania have reverted their balance, with Africa shifting from trade surplus towards deficit in 2012, occasionally reversing back and forth. Oceania on the other hand shifted from trade surplus in 2004, and remained with a deficit since then.
+
+* America sustained a trade deficit until 2011, then in 2012 held the same amount of imports and exports. After, exports continued to increase while imports remained fairly stable, shifting to a trade surplus that continued to grow.
+
+* The top 6 countries with the biggest trade surplus in the world, or where most of the aquacultured crustaceans come form, listed as follows: Thailand, Vietnam, China, India, Indonesia, Ecuador.
+
+* The top 6 countries with the biggest trade deficit in the world, or where most of the aquacultured crustaceans go to, listed as follows: US, Japan, Spain, France, South Korea, Italy. 
+
+### Trade quantity and price analysis, per region
+
+Now we will zoom in to analyze trade quantity per region across time to uncover trends and map direction and magnitude of trade flows. In the following time charts we can see countries that have performed above the region's average, marked with a black line. Next to these charts we will calculate the prices of imports and exports, by dividing the value of the trade in USD between the quantity of the trade in tonnes.
+
+#### Africa
+
+African trade surplus halted in 2009-2010 because of Nigerian exports, and shifted to deficit because Moroccan and Egyptian imports soared in 2010.
+
+```{r zoom africa, echo=FALSE, message=FALSE, warning=FALSE}
+
+cute_plot2_Africa <- ggplot(data = filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Africa")) +
+  geom_jitter (data = filter(bin_data,relation_to_mean=="Other", commodity=="Crustaceans", unit=="qty", region=="Africa"), 
+               mapping=aes(x=year, y=number), colour="gray", width = 0.2)+
+  geom_line (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Africa"), 
+             mapping=aes(x=year, y=number, color=relation_to_mean), alpha = 0.4)+
+  geom_point (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Africa"), 
+              mapping=aes(x=year, y=number, color=relation_to_mean))+
+  geom_line (data= filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Africa"), 
+             mapping = aes(x=year, y=mean_number), color="black", linewidth = 0.5)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Morocco"),
+            mapping=aes(x=2008, y=35000, color=land_area), label="Morocco", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Egypt"),
+            mapping=aes(x=2012, y=25000, color=land_area), label="Egypt", size=3)+
+   geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="South Africa"),
+            mapping=aes(x=2011, y=7000, color=land_area), label="South Africa", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Morocco"),
+            mapping=aes(x=2014, y=20000, color=land_area), label="Morocco", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Nigeria"),
+            mapping=aes(x=2014, y=15000, color=land_area), label="Nigeria", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Madagascar"),
+            mapping=aes(x=2014, y=9500, color=land_area), label="Madagascar", size=3)+
+  labs(title="Africa - Aquacultured crustacean tonnes traded ", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)+
+  theme(legend.position = "none")
+cute_plot2_Africa
+
+```
+
+```{r africa price, echo =FALSE, message=FALSE, warning=FALSE}
+price_grid <- ggplot(data = filter(all_countries_price, commodity=="Crustaceans", region=="Africa"), mapping=aes(x=year, y=price)) +
+  geom_line(mapping=aes(x=year, y=price, group=land_area), alpha=.2)+
+  geom_smooth(data = filter(all_countries_price, commodity=="Crustaceans", region=="Africa"),
+              mapping=aes(x=year, y=price))+
+  facet_wrap(~trade_flow)+
+  labs(title="Africa - Price of Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Thousands of USD per tonne", caption= "FAO Global Aquaculture Imports and Exports" )
+price_grid
+```
+
+
+#### America
+
+America shifted to trade surplus because its exports increased rapidly from 2011 onwards,  likely because of Ecuador and other developing countries' increase in exports in that same period.
+
+```{r zoom america, echo=FALSE, message=FALSE, warning=FALSE}
+cute_plot2_America <- ggplot(data = filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="America")) +
+  geom_jitter (data = filter(bin_data,relation_to_mean=="Other", commodity=="Crustaceans", unit=="qty", region=="America"), 
+               mapping=aes(x=year, y=number), colour="gray", width = 0.2)+
+  geom_line (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="America"), 
+             mapping=aes(x=year, y=number, color=relation_to_mean), alpha = 0.4)+
+  geom_point (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="America"), 
+              mapping=aes(x=year, y=number, color=relation_to_mean))+
+  geom_line (data= filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="America"), 
+             mapping = aes(x=year, y=mean_number), color="black", linewidth = 0.5)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="United States of America"),
+            mapping=aes(x=2013, y=650000, color=land_area), label="USA", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Canada"),
+            mapping=aes(x=2013, y=200000, color=land_area), label="Canada", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Canada"),
+            mapping=aes(x=2008, y=300000, color=land_area), label="Canada", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Ecuador"),
+            mapping=aes(x=2012, y=350000, color=land_area), label="Ecuador", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Argentina"),
+            mapping=aes(x=2013, y=140000, color=land_area), label="Argentina", size=3)+
+  labs(title="America - Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)+
+  theme(legend.position = "none")
+cute_plot2_America
+```
+
+```{r america price, echo=FALSE, message=FALSE, warning=FALSE}
+price_grid <- ggplot(data = filter(all_countries_price, commodity=="Crustaceans", region=="America"), mapping=aes(x=year, y=price)) +
+  geom_line(mapping=aes(x=year, y=price, group=land_area), alpha=.2)+
+  geom_smooth(data = filter(all_countries_price, commodity=="Crustaceans", region=="America"),
+              mapping=aes(x=year, y=price))+
+  facet_wrap(~trade_flow)+
+  labs(title="America - Price of Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Thousands of USD per tonne", caption= "FAO Global Aquaculture Imports and Exports" )
+price_grid
+```
+
+
+
+#### Asia
+
+Asia can maintain such high trade surplus because it has 5 countries overperforming much above average.
+
+```{r asia, echo=FALSE, message=FALSE, warning=FALSE}
+cute_plot2_Asia <- ggplot(data = filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Asia")) +
+  geom_jitter (data = filter(bin_data,relation_to_mean=="Other", commodity=="Crustaceans", unit=="qty", region=="Asia"), 
+               mapping=aes(x=year, y=number), colour="gray", width = 0.2)+
+  geom_line (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Asia"), 
+             mapping=aes(x=year, y=number, color=relation_to_mean), alpha = 0.4)+
+  geom_point (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Asia"), 
+              mapping=aes(x=year, y=number, color=relation_to_mean))+
+  geom_line (data= filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Asia"), 
+             mapping = aes(x=year, y=mean_number), color="black", linewidth = 0.5)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Japan"),
+            mapping=aes(x=2013, y=400000, color=land_area), label="Japan", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="China"),
+            mapping=aes(x=2013, y=200000, color=land_area), label="China", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Korea, Republic of"),
+            mapping=aes(x=2006, y=180000, color=land_area), label="South Korea", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="China, Hong Kong SAR"),
+            mapping=aes(x=2006, y=97000, color=land_area), label="Hong Kong", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="China"),
+            mapping=aes(x=2012, y=550000, color=land_area), label="China", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Viet Nam"),
+            mapping=aes(x=2014, y=500000, color=land_area), label="Vietnam", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="India"),
+            mapping=aes(x=2014, y=300000, color=land_area), label="India", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Thailand"),
+            mapping=aes(x=2014, y=150000, color=land_area), label="Thailand", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Indonesia"),
+            mapping=aes(x=2014, y=240000, color=land_area), label="Indonesia", size=3)+
+  labs(title="Asia - Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)+
+  theme(legend.position = "none")
+cute_plot2_Asia
+```
+
+```{r asia price, echo=FALSE, message=FALSE, warning=FALSE}
+price_grid <- ggplot(data = filter(all_countries_price, commodity=="Crustaceans", region=="Asia"), mapping=aes(x=year, y=price)) +
+  geom_line(mapping=aes(x=year, y=price, group=land_area), alpha=.2)+
+  geom_smooth(data = filter(all_countries_price, commodity=="Crustaceans", region=="Asia"),
+              mapping=aes(x=year, y=price))+
+  facet_wrap(~trade_flow)+
+  labs(title="Asia - Price of Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Thousands of USD per tonne", caption= "FAO Global Aquaculture Imports and Exports" )
+price_grid
+```
+
+
+
+#### Europe
+
+Europe does not hold such a wide trade deficit but it is still maintained, likely because it has more strong importers than exporters, and have remained stable in the examined period.
+
+```{r europe, echo=FALSE, message=FALSE, warning=FALSE}
+cute_plot2_Europe <- ggplot(data = filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Europe")) +
+  geom_jitter (data = filter(bin_data,relation_to_mean=="Other", commodity=="Crustaceans", unit=="qty", region=="Europe"), 
+               mapping=aes(x=year, y=number), colour="gray", width = 0.2)+
+  geom_line (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Europe"), 
+             mapping=aes(x=year, y=number, color=relation_to_mean), alpha = 0.4)+
+  geom_point (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Europe"), 
+              mapping=aes(x=year, y=number, color=relation_to_mean))+
+  geom_line (data= filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Europe"), 
+             mapping = aes(x=year, y=mean_number), color="black", linewidth = 0.5)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Spain"),
+            mapping=aes(x=2013, y=200000, color=land_area), label="Spain", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="France"),
+            mapping=aes(x=2013, y=150000, color=land_area), label="France", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Denmark"),
+            mapping=aes(x=2011, y=120000, color=land_area), label="Denmark", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="Italy"),
+            mapping=aes(x=2005, y=110000, color=land_area), label="Italy", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Import", land_area=="United Kingdom"),
+            mapping=aes(x=2004, y=120000, color=land_area), label="UK", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Denmark"),
+            mapping=aes(x=2013, y=120000, color=land_area), label="Denmark", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Netherlands"),
+            mapping=aes(x=2010, y=80000, color=land_area), label="Netherlands", size=3)+
+  geom_text(data=filter(bin_data, trade_flow=="Export", land_area=="Russian Federation"),
+            mapping=aes(x=2014, y=60000, color=land_area), label="Russia", size=3)+
+  labs(title="Europe - Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)+
+  theme(legend.position = "none")
+cute_plot2_Europe
+```
+
+```{r europe price, echo=FALSE, message=FALSE, warning=FALSE}
+price_grid <- ggplot(data = filter(all_countries_price, commodity=="Crustaceans", region=="Europe"), mapping=aes(x=year, y=price)) +
+  geom_line(mapping=aes(x=year, y=price, group=land_area), alpha=.2)+
+  geom_smooth(data = filter(all_countries_price, commodity=="Crustaceans", region=="Europe"),
+              mapping=aes(x=year, y=price))+
+  facet_wrap(~trade_flow)+
+  labs(title="Europe - Price of Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Thousands of USD per tonne", caption= "FAO Global Aquaculture Imports and Exports" )
+price_grid
+```
+
+
+
+#### Oceania
+
+Oceania's shift from a surplus to a deficit is explained by Australia's change from focusing on exports to imports in 2005.
+
+```{r oceania, echo=FALSE, message=FALSE, warning=FALSE}
+cute_plot2_Oceania <- ggplot(data = filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Oceania")) +
+  geom_jitter (data = filter(bin_data,relation_to_mean=="Other", commodity=="Crustaceans", unit=="qty", region=="Oceania"), 
+               mapping=aes(x=year, y=number), colour="gray", width = 0.2)+
+  geom_line (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Oceania"), 
+             mapping=aes(x=year, y=number, color=relation_to_mean), alpha = 0.4)+
+  geom_point (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty", region=="Oceania"), 
+              mapping=aes(x=year, y=number, color=relation_to_mean))+
+  geom_line (data= filter(bin_data, commodity=="Crustaceans", unit=="qty", region=="Oceania"), 
+             mapping = aes(x=year, y=mean_number), color="black", linewidth = 0.5)+
+  geom_text(data=filter(bin_data, land_area=="Australia"),
+            mapping=aes(x=2013, y=30000, color=land_area), label="Australia", size=3)+
+  geom_text(data=filter(bin_data, land_area=="New Zealand"),
+            mapping=aes(x=2013, y=10000, color=land_area), label="New Zealand", size=3)+
+  labs(title="Oceania - Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)+
+  theme(legend.position = "none")
+cute_plot2_Oceania
+```
+
+```{r oceania price, echo=FALSE, message=FALSE, warning=FALSE}
+price_grid <- ggplot(data = filter(all_countries_price, commodity=="Crustaceans", region=="Oceania"), mapping=aes(x=year, y=price)) +
+  geom_line(mapping=aes(x=year, y=price, group=land_area), alpha=.2)+
+  geom_smooth(data = filter(all_countries_price, commodity=="Crustaceans", region=="Oceania"),
+              mapping=aes(x=year, y=price))+
+  facet_wrap(~trade_flow)+
+  labs(title="Oceania - Price of Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Thousands of USD per tonne", caption= "FAO Global Aquaculture Imports and Exports" )
+price_grid
+```
+
+
+
+
+### Global values in context
+
+```{r zoom world, echo=FALSE, message=FALSE, warning=FALSE}
+cute_plot2_world <- ggplot(data = filter(bin_data, commodity=="Crustaceans", unit=="qty")) +
+  
+  geom_jitter (data = filter(bin_data,relation_to_mean=="Other", commodity=="Crustaceans", unit=="qty",
+                             land_area!="United States of America"&
+                               land_area!="Viet Nam"&
+                               land_area!="India"&
+                               land_area!="Ecuador"&
+                               land_area!="China"&
+                               land_area!="Japan"&
+                               land_area!="Canada"&
+                               land_area!="Indonesia"&
+                               land_area!="Spain" ),  
+               mapping=aes(x=year, y=number), colour="gray", width = 0.2)+
+  
+  geom_line (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty",
+                           land_area=="United States of America"|
+                            land_area=="Viet Nam"|
+                            land_area=="India"|
+                            land_area=="Ecuador"|
+                            land_area=="China"|
+                            land_area=="Japan"|
+                            land_area=="Canada"|
+                            land_area=="Indonesia"|
+                            land_area=="Spain" ), 
+             mapping=aes(x=year, y=number, color=relation_to_mean), alpha = 0.4)+
+  
+  geom_point (data = filter(bin_data,relation_to_mean!="Other", commodity=="Crustaceans", unit=="qty",
+                            land_area=="United States of America"|
+                              land_area=="Viet Nam"|
+                              land_area=="India"|
+                              land_area=="Ecuador"|
+                              land_area=="China"|
+                              land_area=="Japan"|
+                              land_area=="Canada"|
+                              land_area=="Indonesia"|
+                              land_area=="Spain" ), 
+              mapping=aes(x=year, y=number, color=relation_to_mean))+
+  
+    stat_summary(data= filter(bin_data, commodity=="Crustaceans", unit=="qty"), 
+                 mapping=aes(x=year, y=number, color=relation_to_mean), 
+                 fun = mean, geom = "line", size = 0.5, color = "black")+
+  labs(title="Top countries worldwide - Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="Tonnes", caption= "FAO Global Aquaculture Imports and Exports" )+
+  facet_wrap(~trade_flow)
+cute_plot2_world
+
+```
+
+```{r price histogram, echo=FALSE, message=FALSE, warning=FALSE}
+price_grid <- ggplot(data = filter(all_countries_price, commodity=="Crustaceans"),
+                     mapping=aes( y=price_thousand)) +
+  geom_histogram (binwidth=1000, color="white")+
+  coord_flip() +
+  facet_wrap(~trade_flow)+
+  scale_y_continuous(limits = c(0,70000)) +
+  labs(title="Global prices of Aquacultured crustacean tonnes traded", subtitle="from 2000-2015",
+       x="Year", y="USD per tonne", caption= "FAO Global Aquaculture Imports and Exports" )+
+  geom_text(data=filter(all_countries_price,trade_flow=="Export"), 
+            mapping=aes(y=25000, x=270), label="6000 to 7000 USD per tonne")+
+  geom_text(data=filter(all_countries_price,trade_flow=="Import"), 
+            mapping=aes(y=35000, x=270), label="7000 to 8000 USD per tonne")
+price_grid
+```
+
+```{r per capita, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data=filter(population_all, commodity=="Crustaceans", unit=="qty", number>0),
+       mapping=aes(x=year, y=per_capita))+
+  geom_point()+
+  geom_line()+
+  geom_smooth()+
+  facet_wrap(~trade_flow)
+```
+
+
+With these charts we can confirm the main movers per region for exports and imports, and how they behaved over the years.
+
+## Findings
+
+In this section we will discuss the main conclusions of the analysis, propose a solution to the business task and add a series of recommendations.
+
+### High level insights
+
+* Per capita trade flows of aquacultured crustaceans are on the rise.
+
+* The development and transfer of technology will be a key piece to base operations in developing countries.
+
+* Regions and countries with the most significant trade surplus are those who have likely invested heavily in developing technology for efficient farms, and where said technology is easier found and applied across the industry.
+
+* Regions and countries with significant trade deficits and fast-growing populations will likely continue to widen said deficits over the next years, like the US and South Korea.
+
+### Proposed solution outline
+
+Having taken in all the previous data, in order to maximize the chances of success, the recommendation of the analyst is the following: Set up farms and operations in a country with active developing of aquaculture technology, where it can be easier found and applied across the industry. At the same time, located in a region where the biggest quantity of crustaceans will be commercialized. Therefore, we will be focusing on a region with both a country with high trade surplus and a country with high trade deficit. Only two regions meet this criteria: America and Asia. The analyst believes America is the safest bet because of the relatively low competition. Ecuador is the only country in the top 6 exporters in America, and a benchmark for innovation and technology transfer from the most competed industry in top Asian countries. At the same time, the US market is relatively close, enabling safer and cheaper exports than competitors in other regions.  
+
+#### Alternative solutions:
+
+* Base operations in Canada or Mexico- Canada and Mexico did not make it to the top chart but have fairly strong exports in the region and a geographical advantage over the largest market, the US.
+
+* Base operations and commercialize in Asia- As the other region to meet the criteria for selection, developing a strategy in Asia is a viable route. Caution is advised, since as previously mentioned, competition may be strong. Japanese trade policies are also known to be stringent. 
+
+#### Next steps
+
+* Investigate trade policies in each of the proposed regions and countries.
+
+* Investigate the state of aquaculture farm technology in each of the proposed regions and countries.
+
+* Update the analyzed data for the next 10 year period, if available on the Food and Agriculture Organization of the United Nations (FAO) original reports (will need to scrape significantly).
